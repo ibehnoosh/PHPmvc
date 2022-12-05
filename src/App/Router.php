@@ -21,7 +21,6 @@ class Router
         $this->register('post',$route,$action);
         return $this;
     }
-
     public function routes(): array
     {
         return $this->routes;
