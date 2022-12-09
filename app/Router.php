@@ -4,11 +4,34 @@ declare(strict_types=1);
 
 namespace App;
 
+use App\Attributes\Route;
 use App\Exceptions\RouteNotFoundException;
+use Illuminate\Container\Container;
 
 class Router
 {
-    private array $routes;
+    private array $routes = [];
+
+    public function __construct(private Container $container)
+    {
+    }
+
+    public function registerRoutesFromControllerAttributes(array $controllers)
+    {
+        foreach($controllers as $controller) {
+            $reflectionController = new \ReflectionClass($controller);
+
+            foreach($reflectionController->getMethods() as $method) {
+                $attributes = $method->getAttributes(Route::class, \ReflectionAttribute::IS_INSTANCEOF);
+
+                foreach($attributes as $attribute) {
+                    $route = $attribute->newInstance();
+
+                    $this->register($route->method->value, $route->routePath, [$controller, $method->getName()]);
+                }
+            }
+        }
+    }
 
     public function register(string $requestMethod, string $route, callable|array $action): self
     {
@@ -45,15 +68,13 @@ class Router
             return call_user_func($action);
         }
 
-        if (is_array($action)) {
-            [$class, $method] = $action;
+        [$class, $method] = $action;
 
-            if (class_exists($class)) {
-                $class = new $class();
+        if (class_exists($class)) {
+            $class = $this->container->get($class);
 
-                if (method_exists($class, $method)) {
-                    return call_user_func_array([$class, $method], []);
-                }
+            if (method_exists($class, $method)) {
+                return call_user_func_array([$class, $method], []);
             }
         }
 
